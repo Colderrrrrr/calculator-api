@@ -2,10 +2,14 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 
+with open("VERSION") as f:
+    VERSION = f.read().strip()
+
+
 app = FastAPI(
     title="Calculator API",
     description="REST API калькулятор",
-    version="1.0.0"
+    version=VERSION
 )
 
 
@@ -23,7 +27,7 @@ class CalculationResponse(BaseModel):
 def root():
     return {
         "name": "Calculator API",
-        "version": "1.0.0"
+        "version": VERSION
     }
 
 
@@ -54,6 +58,9 @@ def calculate(request: CalculationRequest):
             )
 
         result = request.a / request.b
+
+    elif request.operation == "**":
+        result = request.a ** request.b
 
     else:
         raise HTTPException(
