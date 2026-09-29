@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Tests
+        run: |
+          pip install -r requirements.txt pytest httpx
+          python -m pytest
+
+      - name: Update version
+        run: |
+          IFS=. read MAJOR MINOR PATCH < VERSION
+          NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+          echo "$NEW_VERSION" > VERSION
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Commit version
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add VERSION
+          git commit -m "Version $NEW_VERSION [skip ci]"
+          git tag "v$NEW_VERSION"
+          git push
+          git push --tags
+
+      - name: Build and push Docker image
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker build -t ghcr.io/colderrrrrr/calculator-api:$NEW_VERSION -t ghcr.io/colderrrrrr/calculator-api:latest .
+          docker push ghcr.io/colderrrrrr/calculator-api:$NEW_VERSION
+          docker push ghcr.io/colderrrrrr/calculator-api:latest
