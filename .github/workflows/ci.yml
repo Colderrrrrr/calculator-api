@@ -18,6 +18,7 @@ jobs:
         with:
           python-version: "3.12"
 
+<<<<<<< HEAD
       - name: Update dependencies
         run: |
           pip install -U fastapi "uvicorn[standard]" pydantic
@@ -39,6 +40,17 @@ jobs:
           else
             NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
           fi
+=======
+      - name: Tests
+        run: |
+          pip install -r requirements.txt pytest httpx
+          python -m pytest
+
+      - name: Update version
+        run: |
+          IFS=. read MAJOR MINOR PATCH < VERSION
+          NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+>>>>>>> c9f2134209eb07121d8d62f3903e305738fc4b16
           echo "$NEW_VERSION" > VERSION
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
@@ -46,7 +58,11 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
+<<<<<<< HEAD
           git add VERSION requirements.txt
+=======
+          git add VERSION
+>>>>>>> c9f2134209eb07121d8d62f3903e305738fc4b16
           git commit -m "Version $NEW_VERSION [skip ci]"
           git tag "v$NEW_VERSION"
           git push
@@ -55,6 +71,10 @@ jobs:
       - name: Build and push Docker image
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+<<<<<<< HEAD
           docker build --pull -t ghcr.io/colderrrrrr/calculator-api:$NEW_VERSION -t ghcr.io/colderrrrrr/calculator-api:latest .
+=======
+          docker build -t ghcr.io/colderrrrrr/calculator-api:$NEW_VERSION -t ghcr.io/colderrrrrr/calculator-api:latest .
+>>>>>>> c9f2134209eb07121d8d62f3903e305738fc4b16
           docker push ghcr.io/colderrrrrr/calculator-api:$NEW_VERSION
           docker push ghcr.io/colderrrrrr/calculator-api:latest
