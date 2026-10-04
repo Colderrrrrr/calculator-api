@@ -1,6 +1,3 @@
-# Calculator API
-
-REST API калькулятор на FastAPI.
 
 ## Запуск
 
