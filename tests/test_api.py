@@ -42,7 +42,7 @@ def test_unsupported_operation():
     assert calc(1, 2, "%").status_code == 400
 
 
-# проверки на граничные значения, раньше здесь был код 500 или неверный результат
+# проверки на граничные значения
 
 def test_zero_to_negative_power():
     assert calc(0, -1, "**").status_code == 400
