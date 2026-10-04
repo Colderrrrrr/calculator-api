@@ -5,29 +5,78 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
+
+env:
+  IMAGE: ghcr.io/colderrrrrr/calculator-api
+  TRIVY: aquasec/trivy:0.75.0
+  GITLEAKS: zricethezav/gitleaks:v8.30.1
 
 jobs:
-  build:
+  security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # actions закреплены по SHA: тег можно перенести на другой коммит
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - name: Semgrep
+        run: |
+          pip install semgrep
+          semgrep scan \
+            --config p/python \
+            --config p/security-audit \
+            --config p/secrets \
+            --config p/dockerfile \
+            --config p/github-actions \
+            --metrics off --text --json --output semgrep.json
+
+      - name: Trivy config
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src "$TRIVY" config /src \
+            --severity MEDIUM,HIGH,CRITICAL --exit-code 1
+
+      - name: Gitleaks
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src "$GITLEAKS" \
+            detect --source=/src --no-banner --redact \
+            --report-format json --report-path gitleaks.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            semgrep.json
+            gitleaks.json
+
+  release:
+    needs: security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
-<<<<<<< HEAD
       - name: Update dependencies
         run: |
           pip install -U fastapi "uvicorn[standard]" pydantic
-          pip freeze | grep -iE "^(fastapi|uvicorn|pydantic)==" > requirements.txt
+          {
+            echo "fastapi==$(pip show fastapi | awk '/^Version:/{print $2}')"
+            echo "uvicorn[standard]==$(pip show uvicorn | awk '/^Version:/{print $2}')"
+            echo "pydantic==$(pip show pydantic | awk '/^Version:/{print $2}')"
+          } > requirements.txt
           cat requirements.txt
 
       - name: Tests
         run: |
-          pip install pytest httpx
+          pip install -r requirements.txt pytest httpx
           python -m pytest
 
       - name: Update version
@@ -40,41 +89,41 @@ jobs:
           else
             NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
           fi
-=======
-      - name: Tests
-        run: |
-          pip install -r requirements.txt pytest httpx
-          python -m pytest
-
-      - name: Update version
-        run: |
-          IFS=. read MAJOR MINOR PATCH < VERSION
-          NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
->>>>>>> c9f2134209eb07121d8d62f3903e305738fc4b16
           echo "$NEW_VERSION" > VERSION
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Build image
+        run: docker build --pull -t "$IMAGE:$NEW_VERSION" -t "$IMAGE:latest" .
+
+      - name: Trivy image
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/out" "$TRIVY" image "$IMAGE:$NEW_VERSION" --scanners vuln \
+            --severity HIGH,CRITICAL --format table --output /out/trivy-image.txt
+          cat trivy-image.txt
+          # выпуск останавливаем, только если исправление уже существует
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            "$TRIVY" image "$IMAGE:$NEW_VERSION" --scanners vuln \
+            --severity CRITICAL --ignore-unfixed --exit-code 1 --quiet
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: trivy-image-report
+          path: trivy-image.txt
 
       - name: Commit version
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-<<<<<<< HEAD
           git add VERSION requirements.txt
-=======
-          git add VERSION
->>>>>>> c9f2134209eb07121d8d62f3903e305738fc4b16
           git commit -m "Version $NEW_VERSION [skip ci]"
           git tag "v$NEW_VERSION"
           git push
           git push --tags
 
-      - name: Build and push Docker image
+      - name: Push image
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-<<<<<<< HEAD
-          docker build --pull -t ghcr.io/colderrrrrr/calculator-api:$NEW_VERSION -t ghcr.io/colderrrrrr/calculator-api:latest .
-=======
-          docker build -t ghcr.io/colderrrrrr/calculator-api:$NEW_VERSION -t ghcr.io/colderrrrrr/calculator-api:latest .
->>>>>>> c9f2134209eb07121d8d62f3903e305738fc4b16
-          docker push ghcr.io/colderrrrrr/calculator-api:$NEW_VERSION
-          docker push ghcr.io/colderrrrrr/calculator-api:latest
+          docker push "$IMAGE:$NEW_VERSION"
+          docker push "$IMAGE:latest"
