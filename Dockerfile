@@ -1,6 +1,5 @@
 FROM python:3.12-slim
 
-# обновление системных пакетов базового образа
 RUN apt-get update \
     && apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/* \
