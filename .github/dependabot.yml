@@ -10,8 +10,6 @@ updates:
     schedule:
       interval: "weekly"
 
-  # Actions закреплены по SHA коммита, поэтому обновлять их нужно
-  # отдельно — иначе пайплайн останется на старых версиях.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
