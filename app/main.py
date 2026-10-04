@@ -20,7 +20,6 @@ app = FastAPI(
 @app.exception_handler(RequestValidationError)
 async def validation_error(request: Request, exc: RequestValidationError):
     # стандартный обработчик возвращает присланное значение обратно,
-    # а inf в JSON не сериализуется и получается 500 вместо 422
     errors = [
         {"loc": [str(part) for part in error["loc"]], "msg": error["msg"]}
         for error in exc.errors()
